@@ -1,0 +1,77 @@
+<?php
+/**
+ * Get All Citizens Endpoint
+ * 
+ * This endpoint returns all citizens in the database.
+ * Copy this to your actual all.php file.
+ */
+
+session_start();
+
+// CORS headers
+header('Access-Control-Allow-Origin: http://localhost:5173');
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Content-Type: application/json');
+
+// Handle preflight
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+// Check if user is authenticated
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Unauthorized. Please login.'
+    ]);
+    exit;
+}
+
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../middlewares/permission.php';
+
+try {
+    // Check permission
+    requirePermission('VIEW_CITIZEN');
+    
+    $pdo = getDBConnection();
+    
+    // Get all citizens
+    $stmt = $pdo->prepare("
+        SELECT 
+            national_id as nationalId,
+            first_name as firstName,
+            middle_name as middleName,
+            last_name as lastName,
+            gender,
+            date_of_birth as dateOfBirth,
+            place_of_birth as placeOfBirth,
+            nationality,
+            status
+        FROM citizens
+        ORDER BY first_name, last_name
+    ");
+    
+    $stmt->execute();
+    $citizens = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'citizens' => $citizens,
+        'count' => count($citizens)
+    ]);
+    
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'An error occurred while fetching citizens',
+        'error' => $e->getMessage()
+    ]);
+}
+

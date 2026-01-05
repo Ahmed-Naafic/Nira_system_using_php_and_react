@@ -1,0 +1,63 @@
+<?php
+/**
+ * Example: Protected Endpoint with Permission Middleware
+ * 
+ * This is an example of how to protect an endpoint using the permission middleware.
+ * Copy this pattern to your actual create.php file.
+ */
+
+session_start();
+
+// CORS headers
+header('Access-Control-Allow-Origin: http://localhost:5173');
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Content-Type: application/json');
+
+// Handle preflight
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+// Require permission - this will exit with 403 if user doesn't have permission
+require_once __DIR__ . '/../../middlewares/permission.php';
+requirePermission('CREATE_CITIZEN');
+
+// If we get here, user has permission
+// Your endpoint logic here...
+
+try {
+    $data = json_decode(file_get_contents('php://input'), true);
+    
+    // Validate input
+    if (empty($data['firstName']) || empty($data['lastName'])) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => 'First name and last name are required'
+        ]);
+        exit;
+    }
+    
+    // Process citizen creation...
+    // $pdo = getDBConnection();
+    // ... your logic ...
+    
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Citizen created successfully',
+        'nationalId' => '1234567890'
+    ]);
+    
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'An error occurred',
+        'error' => $e->getMessage()
+    ]);
+}
+
