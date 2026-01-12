@@ -36,16 +36,8 @@ try {
     $database = new Database();
     $conn = $database->getConnection();
     
-    // Find user by username (exclude deleted users)
-    // Check if status column exists
-    $checkStatus = $conn->query("SHOW COLUMNS FROM nira_users LIKE 'status'");
-    $hasStatus = $checkStatus->rowCount() > 0;
-    
-    if ($hasStatus) {
-        $stmt = $conn->prepare("SELECT id, username, password, role FROM nira_users WHERE username = ? AND (status IS NULL OR status != 'DELETED')");
-    } else {
-        $stmt = $conn->prepare("SELECT id, username, password, role FROM nira_users WHERE username = ?");
-    }
+    // Find user by username (exclude deleted users using deleted_at - same pattern as citizens)
+    $stmt = $conn->prepare("SELECT id, username, password, role FROM nira_users WHERE username = ? AND deleted_at IS NULL");
     $stmt->execute([$username]);
     $user = $stmt->fetch();
     
@@ -66,10 +58,19 @@ try {
         // Close current session
         session_write_close();
         
+        // Determine the base path for the application (same logic as bootstrap.php)
+        $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
+        $basePath = '/';
+        if (strpos($scriptPath, '/niraSystem') !== false) {
+            $basePath = '/niraSystem/';
+        } elseif (strpos($scriptPath, '/nira_system') !== false) {
+            $basePath = '/nira_system/';
+        }
+        
         // Set cookie params for 30 days
         session_set_cookie_params([
             'lifetime' => 60 * 60 * 24 * 30, // 30 days
-            'path' => '/',
+            'path' => $basePath, // Use same base path as bootstrap
             'domain' => '',
             'secure' => false, // Set to true in production with HTTPS
             'httponly' => true,
@@ -88,15 +89,28 @@ try {
     $_SESSION['username'] = $user['username'];
     $_SESSION['role'] = $user['role'];
     
+    // Set session creation and last activity timestamps
+    $currentTime = time();
+    $_SESSION['created_at'] = $currentTime;
+    $_SESSION['last_activity'] = $currentTime;
+    
     // If rememberMe, also set a flag in session (optional, for tracking)
     if ($rememberMe) {
         $_SESSION['remember_me'] = true;
+        // Extend session timeout for remember me (e.g., 30 days)
+        // Note: This is handled by the cookie lifetime, but we can track it
     }
+    
+    // Calculate session expiration time
+    $sessionTimeout = defined('SESSION_TIMEOUT') ? SESSION_TIMEOUT : 300; // 5 minutes
+    $expiresAt = $currentTime + $sessionTimeout;
     
     http_response_code(200);
     echo json_encode([
         'success' => true,
-        'message' => 'Login successful'
+        'message' => 'Login successful',
+        'sessionExpiresAt' => $expiresAt, // Unix timestamp when session expires
+        'sessionTimeout' => $sessionTimeout // Session timeout in seconds
     ]);
     
 } catch (Exception $e) {

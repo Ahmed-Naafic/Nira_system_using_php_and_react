@@ -109,7 +109,7 @@ try {
     $conn->exec("
         INSERT IGNORE INTO roles (id, name, description) VALUES
         (1, 'ADMIN', 'Full system access'),
-        (2, 'OFFICER', 'Can create and view citizens'),
+        (2, 'OFFICER', 'Can create, update, and view citizens'),
         (3, 'VIEWER', 'Read-only access')
     ");
     echo "✓ Seeded roles (ADMIN, OFFICER, VIEWER)\n";
@@ -123,7 +123,10 @@ try {
         (4, 'UPDATE_CITIZEN', 'Update citizen records'),
         (5, 'VIEW_REPORTS', 'View reports'),
         (6, 'MANAGE_USERS', 'Manage system users'),
-        (7, 'MANAGE_ROLES', 'Manage roles and permissions')
+        (7, 'MANAGE_ROLES', 'Manage roles and permissions'),
+        (8, 'VIEW_NOTICES', 'View system notices'),
+        (9, 'MANAGE_NOTICES', 'Create and delete system notices'),
+        (10, 'VIEW_ACTIVITIES', 'View system activities')
     ");
     echo "✓ Seeded permissions\n";
     
@@ -153,19 +156,19 @@ try {
     // ADMIN gets all permissions
     $conn->exec("
         INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
-        (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7)
+        (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10)
     ");
     
-    // OFFICER gets dashboard and citizen permissions
+    // OFFICER gets dashboard, citizen, reports, notices, and activities permissions
     $conn->exec("
         INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
-        (2, 1), (2, 2), (2, 3)
+        (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 8), (2, 10)
     ");
     
-    // VIEWER gets view-only permissions
+    // VIEWER gets view-only permissions (dashboard and citizen view only)
     $conn->exec("
         INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
-        (3, 1), (3, 3), (3, 5)
+        (3, 1), (3, 3)
     ");
     echo "✓ Mapped permissions to roles\n";
     
@@ -228,7 +231,7 @@ try {
     echo "  Viewer: username=viewer1, password=admin123 (role_id=3, VIEWER)\n";
     echo "\nRBAC System:\n";
     echo "  - 3 Roles: ADMIN, OFFICER, VIEWER\n";
-    echo "  - 7 Permissions: VIEW_DASHBOARD, CREATE_CITIZEN, VIEW_CITIZEN, UPDATE_CITIZEN, VIEW_REPORTS, MANAGE_USERS, MANAGE_ROLES\n";
+    echo "  - 10 Permissions: VIEW_DASHBOARD, CREATE_CITIZEN, VIEW_CITIZEN, UPDATE_CITIZEN, VIEW_REPORTS, MANAGE_USERS, MANAGE_ROLES, VIEW_NOTICES, MANAGE_NOTICES, VIEW_ACTIVITIES\n";
     echo "  - 5 Menus: Dashboard, Citizens, Add Citizen, Reports, User Management\n";
     echo "\nIMPORTANT: Change these passwords in production!\n";
     

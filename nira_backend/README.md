@@ -49,7 +49,7 @@ nira_system/
    private $host = 'localhost';
    private $db_name = 'nira_system';
    private $username = 'root';
-   private $password = '';
+   private $password = '123';
    ```
 
 3. **Web Server Configuration**

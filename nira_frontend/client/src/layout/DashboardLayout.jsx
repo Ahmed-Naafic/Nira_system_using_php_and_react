@@ -31,13 +31,34 @@ const DashboardLayout = ({ children }) => {
               </div>
               <div className="flex items-center space-x-4">
                 {user && (
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {user.username}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {user.role?.name || 'No Role'}
-                    </p>
+                  <div className="flex items-center space-x-3">
+                    {user.profilePictureUrl ? (
+                      <img
+                        src={user.profilePictureUrl}
+                        alt={user.username}
+                        className="h-10 w-10 rounded-full object-cover border border-gray-300"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm ${user.profilePictureUrl ? 'hidden' : ''}`}
+                      style={{
+                        backgroundColor: user.profilePictureUrl ? 'transparent' : `hsl(${user.id * 137.508 % 360}, 70%, 50%)`
+                      }}
+                    >
+                      {user.username.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">
+                        {user.username}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {user.role?.name || 'No Role'}
+                        {user.phoneNumber && ` • ${user.phoneNumber}`}
+                      </p>
+                    </div>
                   </div>
                 )}
                 <button

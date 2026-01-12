@@ -14,7 +14,7 @@ const LoginPage = () => {
     }
   }, [user, loading, navigate]);
 
-  // Show loading while checking auth
+  // Show loading while checking auth (with timeout to prevent infinite loading)
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -31,6 +31,7 @@ const LoginPage = () => {
     return null;
   }
 
+  // Always show login form if not authenticated (even if there were errors)
   return <Login />;
 };
 

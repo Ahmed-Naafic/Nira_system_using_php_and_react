@@ -32,6 +32,8 @@ try {
         SELECT 
             u.id,
             u.username,
+            u.phone_number,
+            u.profile_picture_path,
             u.role_id,
             u.role,
             u.status,
@@ -60,22 +62,49 @@ try {
     $menus = $rbacService->getUserMenus($user['userId']);
     $role = $rbacService->getUserRole($user['userId']);
     
+    // Get profile picture URL if available
+    $profilePictureUrl = null;
+    if (!empty($userData['profile_picture_path'])) {
+        require_once __DIR__ . '/../../utils/file_upload.php';
+        $profilePictureUrl = FileUpload::getFileUrl($userData['profile_picture_path']);
+    }
+    
+    // Calculate session expiration time
+    $sessionTimeout = defined('SESSION_TIMEOUT') ? SESSION_TIMEOUT : 300; // 5 minutes
+    $currentTime = time();
+    $lastActivity = $_SESSION['last_activity'] ?? $currentTime;
+    $expiresAt = $lastActivity + $sessionTimeout;
+    
     // Build response
     http_response_code(200);
+    $responseUser = [
+        'id' => (int)$userData['id'],
+        'username' => $userData['username'],
+        'role' => [
+            'id' => (int)$userData['role_id'],
+            'name' => $userData['role_name'] ?? $userData['role'],
+            'description' => $userData['role_description'] ?? null
+        ],
+        'status' => $userData['status']
+    ];
+    
+    // Include phone number if available
+    if (!empty($userData['phone_number'])) {
+        $responseUser['phoneNumber'] = $userData['phone_number'];
+    }
+    
+    // Include profile picture URL if available
+    if ($profilePictureUrl) {
+        $responseUser['profilePictureUrl'] = $profilePictureUrl;
+    }
+    
     echo json_encode([
         'success' => true,
-        'user' => [
-            'id' => (int)$userData['id'],
-            'username' => $userData['username'],
-            'role' => [
-                'id' => (int)$userData['role_id'],
-                'name' => $userData['role_name'] ?? $userData['role'],
-                'description' => $userData['role_description'] ?? null
-            ],
-            'status' => $userData['status']
-        ],
+        'user' => $responseUser,
         'permissions' => $permissions,
-        'menus' => $menus
+        'menus' => $menus,
+        'sessionExpiresAt' => $expiresAt, // Unix timestamp when session expires
+        'sessionTimeout' => $sessionTimeout // Session timeout in seconds
     ]);
     
 } catch (Exception $e) {

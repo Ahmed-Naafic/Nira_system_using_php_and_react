@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getUsers, changeUserStatus, deleteUser } from '../services/userService';
 import UserCreate from './UserCreate';
@@ -6,17 +7,17 @@ import UserEdit from './UserEdit';
 import ResetPasswordModal from './ResetPasswordModal';
 
 const Users = () => {
+  const navigate = useNavigate();
   const { hasPermission, user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [successMessage] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const deletedUserIdsRef = useRef(new Set());
 
   useEffect(() => {
     if (hasPermission('MANAGE_USERS')) {
@@ -34,15 +35,8 @@ const Users = () => {
       
       if (response.success) {
         const usersData = response.data || response.users || [];
-        console.log('Users data:', usersData); // Debug log
-        if (usersData.length > 0) {
-          console.log('First user object:', usersData[0]); // Debug log - check field names
-        }
-        // Filter out deleted users
-        const filteredUsers = usersData.filter(user => 
-          !deletedUserIdsRef.current.has(String(user.id || user.user_id || ''))
-        );
-        setUsers(filteredUsers);
+        // Backend already filters deleted users (deleted_at IS NULL)
+        setUsers(usersData);
       } else {
         setError(response.message || 'Failed to load users');
       }
@@ -115,27 +109,17 @@ const Users = () => {
     try {
       setDeleting(true);
       setError('');
-      setSuccessMessage('');
       
       const response = await deleteUser(userToDelete.id);
       
       if (response.success) {
-        // Add user ID to deleted set (using ref so it persists)
-        const userId = String(userToDelete.id || userToDelete.user_id || '');
-        deletedUserIdsRef.current.add(userId);
-        
-        // Remove user from list
-        setUsers(users.filter(u => {
-          const uId = String(u.id || u.user_id || '');
-          return uId !== userId;
-        }));
-        setSuccessMessage(`User "${userToDelete.username}" has been deleted successfully.`);
-        setUserToDelete(null);
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => setSuccessMessage(''), 5000);
+        // Navigate to trash page with success message (matches citizen behavior)
+        navigate('/users/trash', {
+          state: { success: 'User moved to trash successfully' },
+        });
       } else {
         setError(response.message || 'Failed to delete user');
+        setDeleting(false);
       }
     } catch (err) {
       setError(
@@ -143,7 +127,6 @@ const Users = () => {
         err.message ||
         'An error occurred while deleting the user'
       );
-    } finally {
       setDeleting(false);
     }
   };
@@ -178,17 +161,30 @@ const Users = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
           <p className="text-gray-600">Manage system users and roles</p>
         </div>
-        {hasPermission('MANAGE_USERS') && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 shadow-sm hover:shadow-md flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create User
-          </button>
-        )}
+        <div className="flex gap-3">
+          {hasPermission('MANAGE_USERS') && (
+            <Link
+              to="/users/trash"
+              className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Trash
+            </Link>
+          )}
+          {hasPermission('MANAGE_USERS') && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 shadow-sm hover:shadow-md flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create User
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Success Message */}
@@ -236,7 +232,10 @@ const Users = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Username
+                    User
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone Number
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Role
@@ -272,7 +271,32 @@ const Users = () => {
                   return (
                   <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-900">{user.username}</span>
+                      <div className="flex items-center">
+                        {user.profilePictureUrl ? (
+                          <img
+                            src={user.profilePictureUrl}
+                            alt={user.username}
+                            className="h-10 w-10 rounded-full object-cover mr-3 border border-gray-300"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextElementSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div className={`h-10 w-10 rounded-full mr-3 flex items-center justify-center text-white font-semibold text-sm ${user.profilePictureUrl ? 'hidden' : ''}`}
+                          style={{
+                            backgroundColor: user.profilePictureUrl ? 'transparent' : `hsl(${user.id * 137.508 % 360}, 70%, 50%)`
+                          }}
+                        >
+                          {user.username.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{user.username}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">
+                        {user.phoneNumber || '-'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-900">
@@ -409,10 +433,7 @@ const Users = () => {
               {/* Message */}
               <div className="mb-6">
                 <p className="text-gray-700 mb-2">
-                  Are you sure you want to delete user <span className="font-semibold">"{userToDelete.username}"</span>?
-                </p>
-                <p className="text-sm text-red-600 font-medium">
-                  This action cannot be undone.
+                  Are you sure you want to delete user <span className="font-semibold">"{userToDelete.username}"</span>? This will move them to trash.
                 </p>
               </div>
 

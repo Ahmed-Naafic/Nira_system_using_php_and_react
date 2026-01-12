@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { createUser, getRoles } from '../services/userService';
+import api from '../api/api';
 
 const UserCreate = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     role_id: '',
+    phoneNumber: '',
     status: 'ACTIVE',
   });
+  const [profilePictureFile, setProfilePictureFile] = useState(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState(null);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -56,6 +60,31 @@ const UserCreate = ({ onClose, onSuccess }) => {
     setError('');
   };
 
+  const handleProfilePictureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image file size must be less than 5MB');
+        return;
+      }
+      setProfilePictureFile(file);
+      setError('');
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePicturePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -91,22 +120,61 @@ const UserCreate = ({ onClose, onSuccess }) => {
     try {
       setLoading(true);
       
-      // Ensure role_id is a number, not a string
-      const submitData = {
-        ...formData,
-        role_id: formData.role_id ? parseInt(formData.role_id, 10) : null,
-      };
+      // Validate phone number format if provided
+      if (formData.phoneNumber && !/^[+]?[0-9]{8,15}$/.test(formData.phoneNumber.trim())) {
+        setError('Invalid phone number format. Use 8-15 digits with optional country code (e.g., +1234567890)');
+        setLoading(false);
+        return;
+      }
       
-      console.log('Submitting user data:', submitData); // Debug log
+      // Check if we have profile picture to upload (use FormData) or just data (use JSON)
+      const hasProfilePicture = profilePictureFile;
       
-      const response = await createUser(submitData);
-      
-      console.log('Create user response:', response); // Debug log
-
-      if (response.success) {
-        onSuccess();
+      if (hasProfilePicture) {
+        // Use FormData for file upload
+        const formDataToSend = new FormData();
+        formDataToSend.append('username', formData.username.trim());
+        formDataToSend.append('password', formData.password);
+        formDataToSend.append('role_id', formData.role_id ? parseInt(formData.role_id, 10) : '');
+        formDataToSend.append('status', formData.status);
+        if (formData.phoneNumber.trim()) {
+          formDataToSend.append('phoneNumber', formData.phoneNumber.trim());
+        }
+        
+        if (profilePictureFile) {
+          formDataToSend.append('profilePicture', profilePictureFile);
+        }
+        
+        const response = await api.post('/api/users/create.php', formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        if (response.data.success) {
+          onSuccess();
+        } else {
+          setError(response.data.message || 'Failed to create user');
+        }
       } else {
-        setError(response.message || 'Failed to create user');
+        // Use JSON for regular creation
+        const submitData = {
+          ...formData,
+          role_id: formData.role_id ? parseInt(formData.role_id, 10) : null,
+          phoneNumber: formData.phoneNumber.trim() || null,
+        };
+        
+        console.log('Submitting user data:', submitData); // Debug log
+        
+        const response = await createUser(submitData);
+      
+        console.log('Create user response:', response); // Debug log
+
+        if (response.success) {
+          onSuccess();
+        } else {
+          setError(response.message || 'Failed to create user');
+        }
       }
     } catch (err) {
       console.error('Error creating user:', err);
@@ -218,6 +286,23 @@ const UserCreate = ({ onClose, onSuccess }) => {
             </div>
 
             <div>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150"
+                placeholder="+1234567890 (optional)"
+                pattern="[+]?[0-9]{8,15}"
+              />
+              <p className="text-xs text-gray-500 mt-1">8-15 digits with optional country code</p>
+            </div>
+
+            <div>
               <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
                 Status
               </label>
@@ -231,6 +316,35 @@ const UserCreate = ({ onClose, onSuccess }) => {
                 <option value="ACTIVE">Active</option>
                 <option value="DISABLED">Disabled</option>
               </select>
+            </div>
+
+            <div className="col-span-2">
+              <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700 mb-2">
+                Profile Picture
+              </label>
+              <div className="space-y-3">
+                <input
+                  type="file"
+                  id="profilePicture"
+                  name="profilePicture"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleProfilePictureChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  Accepted formats: JPG, PNG, GIF, WEBP (Max 5MB)
+                </p>
+                {profilePicturePreview && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">Preview:</p>
+                    <img
+                      src={profilePicturePreview}
+                      alt="Profile preview"
+                      className="max-w-full h-32 w-32 object-cover border border-gray-300 rounded-full"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Actions */}

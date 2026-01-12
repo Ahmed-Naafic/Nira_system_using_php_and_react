@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create Axios instance with withCredentials for cookie-based authentication
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/nira_system', // Update with your NIRA backend URL
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/niraSystem/nira_backend', // Update with your NIRA backend URL
   withCredentials: true, // Essential for session cookies
   headers: {
     'Content-Type': 'application/json',
@@ -19,24 +19,31 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle 401 errors globally
-// Note: We don't redirect here to avoid conflicts with ProtectedRoute
-// ProtectedRoute will handle redirects for route protection
+// Response interceptor to handle 401 errors globally (session expiration)
 api.interceptors.response.use(
   (response) => {
+    // Update session expiration time if provided in response
+    if (response.data?.sessionExpiresAt) {
+      // Store in localStorage for cross-component access
+      localStorage.setItem('sessionExpiresAt', response.data.sessionExpiresAt.toString());
+    }
     return response;
   },
   (error) => {
-    // Let the error propagate - ProtectedRoute and components will handle 401s
-    // Only redirect if we're not already on login page
-    if (error.response && error.response.status === 401) {
-      const currentPath = window.location.pathname;
-      if (currentPath !== '/login' && !currentPath.startsWith('/login')) {
-        // Only redirect if not already on login page
-        // This prevents redirect loops
-        window.location.href = '/login';
+    // Handle 401 errors (session expired or not authenticated)
+    if (error.response?.status === 401) {
+      // Clear session expiration time
+      localStorage.removeItem('sessionExpiresAt');
+      
+      // Check if it's a session expiration (not just missing auth)
+      if (error.response?.data?.expired) {
+        // Trigger session expired event for AuthContext
+        window.dispatchEvent(new CustomEvent('sessionExpired'));
       }
     }
+    
+    // Let the error propagate - AuthContext and ProtectedRoute will handle 401s
+    // We don't redirect here to prevent redirect loops
     return Promise.reject(error);
   }
 );

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
+import { handleViewCitizenDetails } from './utils/citizenNavigation';
 
 const CitizenSearch = () => {
   const [nationalId, setNationalId] = useState('');
@@ -21,11 +22,14 @@ const CitizenSearch = () => {
 
       console.log('Search response:', response.data);
 
-      if (response.data.success && response.data.citizen) {
-        // Navigate to citizen details page with the citizen data
-        navigate('/citizens/details', {
-          state: { citizen: response.data.citizen },
-        });
+      if (response.data.success && response.data.data) {
+        // Extract nationalId and navigate using shared handler
+        const nationalId = response.data.data.nationalId;
+        if (nationalId) {
+          handleViewCitizenDetails(navigate, nationalId);
+        } else {
+          setError('Citizen not found');
+        }
       } else {
         setError('Citizen not found');
       }

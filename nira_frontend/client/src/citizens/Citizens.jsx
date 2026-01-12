@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/api';
+import { handleViewCitizenDetails } from './utils/citizenNavigation';
 
 const Citizens = () => {
   const { hasPermission } = useAuth();
@@ -101,10 +102,10 @@ const Citizens = () => {
 
     const lowerQuery = query.toLowerCase();
     const filtered = allCitizens.filter((citizen) => {
-      const nationalId = String(citizen.nationalId || citizen.national_id || '').toLowerCase();
-      const firstName = String(citizen.firstName || citizen.first_name || '').toLowerCase();
-      const middleName = String(citizen.middleName || citizen.middle_name || '').toLowerCase();
-      const lastName = String(citizen.lastName || citizen.last_name || '').toLowerCase();
+      const nationalId = String(citizen.nationalId || '').toLowerCase();
+      const firstName = String(citizen.firstName || '').toLowerCase();
+      const middleName = String(citizen.middleName || '').toLowerCase();
+      const lastName = String(citizen.lastName || '').toLowerCase();
       const fullName = `${firstName} ${middleName} ${lastName}`.trim().toLowerCase();
 
       return (
@@ -155,7 +156,7 @@ const Citizens = () => {
           } else {
             throw new Error('Citizen not found');
           }
-        } catch (getErr) {
+        } catch {
           // If direct lookup fails, try search endpoint
           response = await api.get('/api/citizens/search.php', {
             params: { q: query },
@@ -200,9 +201,6 @@ const Citizens = () => {
     }
   };
 
-  const handleViewDetails = (citizen) => {
-    navigate(`/citizens/details?nationalId=${citizen.nationalId || citizen.national_id}`);
-  };
 
   return (
     <div className="space-y-6">
@@ -212,17 +210,30 @@ const Citizens = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Citizens</h1>
           <p className="text-gray-600">National citizen registry</p>
         </div>
-        {hasPermission('CREATE_CITIZEN') && (
-          <Link
-            to="/citizens/create"
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 shadow-sm hover:shadow-md flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Register New Citizen
-          </Link>
-        )}
+        <div className="flex gap-3">
+          {hasPermission('VIEW_CITIZEN') && (
+            <Link
+              to="/citizens/trash"
+              className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Trash
+            </Link>
+          )}
+          {hasPermission('CREATE_CITIZEN') && (
+            <Link
+              to="/citizens/create"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 shadow-sm hover:shadow-md flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Register New Citizen
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -304,25 +315,27 @@ const Citizens = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
+                      {hasPermission('VIEW_CITIZEN') && (
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredCitizens.map((citizen, index) => (
-                      <tr key={citizen.nationalId || citizen.national_id || index} className="hover:bg-gray-50 transition-colors">
+                      <tr key={citizen.nationalId || index} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-mono text-gray-900">
-                            {citizen.nationalId || citizen.national_id || 'N/A'}
+                            {citizen.nationalId || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900">
                             {[
-                              citizen.firstName || citizen.first_name,
-                              citizen.middleName || citizen.middle_name,
-                              citizen.lastName || citizen.last_name,
+                              citizen.firstName,
+                              citizen.middleName,
+                              citizen.lastName,
                             ]
                               .filter(Boolean)
                               .join(' ')}
@@ -335,10 +348,7 @@ const Citizens = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900">
-                            {citizen.dateOfBirth ||
-                              citizen.date_of_birth ||
-                              citizen.dob ||
-                              'N/A'}
+                            {citizen.dateOfBirth || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -346,14 +356,16 @@ const Citizens = () => {
                             {citizen.status || 'Active'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleViewDetails(citizen)}
-                            className="text-blue-600 hover:text-blue-900 transition-colors"
-                          >
-                            View
-                          </button>
-                        </td>
+                        {hasPermission('VIEW_CITIZEN') && (
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button
+                              onClick={() => handleViewCitizenDetails(navigate, citizen.nationalId)}
+                              className="text-blue-600 hover:text-blue-900 transition-colors"
+                            >
+                              View
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

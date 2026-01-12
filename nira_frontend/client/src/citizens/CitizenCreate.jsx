@@ -1,21 +1,31 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/api';
-import ViewCitizen from './ViewCitizen';
+import { handleViewCitizenDetails } from './utils/citizenNavigation';
 
 const CitizenCreate = () => {
   const navigate = useNavigate();
-  const nationalIdInputRef = useRef(null);
-  const [showViewCitizen, setShowViewCitizen] = useState(false);
+  const { hasPermission } = useAuth();
+  // Calculate date range: 100 years ago to today
+  const today = new Date();
+  const hundredYearsAgo = new Date();
+  hundredYearsAgo.setFullYear(today.getFullYear() - 100);
+  const maxDate = today.toISOString().split('T')[0];
+  const minDate = hundredYearsAgo.toISOString().split('T')[0];
+
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     gender: '',
-    dateOfBirth: '',
+    dateOfBirth: '', // No default date
     placeOfBirth: '',
-    nationality: '',
+    nationality: 'Somali', // Default to Somali
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [documentFile, setDocumentFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
@@ -27,23 +37,91 @@ const CitizenCreate = () => {
     });
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image file size must be less than 5MB');
+        return;
+      }
+      setImageFile(file);
+      setError('');
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDocumentChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Document file size must be less than 10MB');
+        return;
+      }
+      setDocumentFile(file);
+      setError('');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const response = await api.post('/api/citizens/create.php', formData);
+      // Validate date of birth range: 100 years ago to today
+      if (formData.dateOfBirth > maxDate) {
+        setError('Date of birth cannot be in the future');
+        setLoading(false);
+        return;
+      }
+      if (formData.dateOfBirth < minDate) {
+        setError('Date of birth cannot be more than 100 years ago');
+        setLoading(false);
+        return;
+      }
+
+      // Create FormData for file upload
+      const formDataToSend = new FormData();
+      formDataToSend.append('firstName', formData.firstName);
+      formDataToSend.append('middleName', formData.middleName);
+      formDataToSend.append('lastName', formData.lastName);
+      formDataToSend.append('gender', formData.gender);
+      formDataToSend.append('dateOfBirth', formData.dateOfBirth);
+      formDataToSend.append('placeOfBirth', formData.placeOfBirth);
+      formDataToSend.append('nationality', formData.nationality);
+      
+      // Append files if selected
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      }
+      if (documentFile) {
+        formDataToSend.append('document', documentFile);
+      }
+
+      const response = await api.post('/api/citizens/create.php', formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
 
       if (response.data.success) {
-        // Handle different possible field names for national ID
-        const nationalId = response.data.nationalId || 
-                          response.data.national_id || 
-                          response.data.data?.nationalId ||
-                          response.data.data?.national_id ||
+        // Backend returns normalized structure
+        const nationalId = response.data.data?.nationalId || 
                           response.data.citizen?.nationalId ||
-                          response.data.citizen?.national_id ||
                           null;
 
         if (!nationalId) {
@@ -124,7 +202,6 @@ const CitizenCreate = () => {
               </label>
               <div className="flex items-center space-x-2">
                 <input
-                  ref={nationalIdInputRef}
                   type="text"
                   readOnly
                   value={success.nationalId || 'Not available'}
@@ -145,15 +222,9 @@ const CitizenCreate = () => {
             </div>
 
             <div className="mt-6 flex space-x-4 justify-center">
-              {success.nationalId && (
+              {success.nationalId && hasPermission('VIEW_CITIZEN') && (
                 <button
-                  onClick={() => {
-                    // Read National ID from the input field
-                    const nationalIdFromInput = nationalIdInputRef.current?.value?.trim() || success.nationalId?.trim();
-                    if (nationalIdFromInput && nationalIdFromInput !== 'Not available') {
-                      setShowViewCitizen(true);
-                    }
-                  }}
+                  onClick={() => handleViewCitizenDetails(navigate, success.nationalId)}
                   className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150"
                 >
                   View Citizen Details
@@ -162,7 +233,6 @@ const CitizenCreate = () => {
               <button
                 onClick={() => {
                   setSuccess(null);
-                  setShowViewCitizen(false);
                   setFormData({
                     firstName: '',
                     middleName: '',
@@ -170,8 +240,11 @@ const CitizenCreate = () => {
                     gender: '',
                     dateOfBirth: '',
                     placeOfBirth: '',
-                    nationality: '',
+                    nationality: 'Somali',
                   });
+                  setImageFile(null);
+                  setDocumentFile(null);
+                  setImagePreview(null);
                 }}
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150"
               >
@@ -180,14 +253,6 @@ const CitizenCreate = () => {
             </div>
           </div>
         </div>
-
-        {/* View Citizen Component */}
-        {showViewCitizen && (
-          <ViewCitizen
-            nationalId={nationalIdInputRef.current?.value?.trim() || success.nationalId?.trim()}
-            onClose={() => setShowViewCitizen(false)}
-          />
-        )}
       </div>
     );
   }
@@ -289,7 +354,7 @@ const CitizenCreate = () => {
                 <option value="">Select Gender</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                
               </select>
             </div>
 
@@ -306,9 +371,28 @@ const CitizenCreate = () => {
                 name="dateOfBirth"
                 required
                 value={formData.dateOfBirth}
-                onChange={handleChange}
+                onChange={(e) => {
+                  const selectedDate = e.target.value;
+                  
+                  // Validate date range: 100 years ago to today
+                  if (selectedDate) {
+                    if (selectedDate > maxDate) {
+                      setError('Date of birth cannot be in the future');
+                      return;
+                    }
+                    if (selectedDate < minDate) {
+                      setError('Date of birth cannot be more than 100 years ago');
+                      return;
+                    }
+                  }
+                  setError('');
+                  handleChange(e);
+                }}
+                min={minDate}
+                max={maxDate}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150"
               />
+              <p className="text-xs text-gray-500 mt-1">Must be between {minDate} and {maxDate}</p>
             </div>
 
             <div>
@@ -336,15 +420,93 @@ const CitizenCreate = () => {
               >
                 Nationality
               </label>
-              <input
-                type="text"
+              <select
                 id="nationality"
                 name="nationality"
                 value={formData.nationality}
                 onChange={handleChange}
-                placeholder="e.g., Somali"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150"
-              />
+              >
+                <option value="Somali">Somali</option>
+                <option value="Ethiopian">Ethiopian</option>
+                <option value="Kenyan">Kenyan</option>
+                <option value="Djiboutian">Djiboutian</option>
+                <option value="Eritrean">Eritrean</option>
+                <option value="Yemeni">Yemeni</option>
+                <option value="Sudanese">Sudanese</option>
+                <option value="Tanzanian">Tanzanian</option>
+                <option value="Ugandan">Ugandan</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* File Upload Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200">
+            {/* Image Upload */}
+            <div>
+              <label
+                htmlFor="image"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Citizen Photo/Image
+              </label>
+              <div className="space-y-3">
+                <input
+                  type="file"
+                  id="image"
+                  name="image"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleImageChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  Accepted formats: JPG, PNG, GIF, WEBP (Max 5MB)
+                </p>
+                {imagePreview && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">Preview:</p>
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="max-w-full h-48 object-contain border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Document Upload */}
+            <div>
+              <label
+                htmlFor="document"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Supporting Document
+              </label>
+              <div className="space-y-3">
+                <input
+                  type="file"
+                  id="document"
+                  name="document"
+                  accept=".pdf,.doc,.docx,image/jpeg,image/jpg,image/png"
+                  onChange={handleDocumentChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  Accepted formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
+                </p>
+                {documentFile && (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">
+                      <svg className="inline-block w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Selected: {documentFile.name} ({(documentFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

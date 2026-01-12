@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { updateUser, getRoles } from '../services/userService';
+import api from '../api/api';
 
 const UserEdit = ({ user, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
-    role_id: user.role_id || '',
+    role_id: user.role?.id || user.role_id || '',
+    phoneNumber: user.phoneNumber || '',
     status: user.status || 'ACTIVE',
   });
+  const [existingProfilePicture, setExistingProfilePicture] = useState(user.profilePictureUrl || null);
+  const [profilePictureFile, setProfilePictureFile] = useState(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState(null);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +46,31 @@ const UserEdit = ({ user, onClose, onSuccess }) => {
     setError('');
   };
 
+  const handleProfilePictureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image file size must be less than 5MB');
+        return;
+      }
+      setProfilePictureFile(file);
+      setError('');
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePicturePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -52,12 +82,68 @@ const UserEdit = ({ user, onClose, onSuccess }) => {
 
     try {
       setLoading(true);
-      const response = await updateUser(user.id, formData);
-
-      if (response.success) {
-        onSuccess();
+      
+      // Validate phone number format if provided
+      if (formData.phoneNumber && !/^[+]?[0-9]{8,15}$/.test(formData.phoneNumber.trim())) {
+        setError('Invalid phone number format. Use 8-15 digits with optional country code (e.g., +1234567890)');
+        setLoading(false);
+        return;
+      }
+      
+      // Check if we have profile picture to upload (use FormData) or just data (use JSON)
+      const hasProfilePicture = profilePictureFile;
+      
+      if (hasProfilePicture) {
+        // Use FormData for file upload
+        const formDataToSend = new FormData();
+        formDataToSend.append('id', user.id);
+        if (formData.role_id) {
+          formDataToSend.append('role_id', parseInt(formData.role_id, 10));
+        }
+        if (formData.status) {
+          formDataToSend.append('status', formData.status);
+        }
+        if (formData.phoneNumber.trim()) {
+          formDataToSend.append('phoneNumber', formData.phoneNumber.trim());
+        }
+        
+        if (profilePictureFile) {
+          formDataToSend.append('profilePicture', profilePictureFile);
+        }
+        
+        const response = await api.post('/api/users/update.php', formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        if (response.data.success) {
+          onSuccess();
+        } else {
+          setError(response.data.message || 'Failed to update user');
+        }
       } else {
-        setError(response.message || 'Failed to update user');
+        // Use JSON for regular updates
+        const updateData = {
+          role_id: formData.role_id ? parseInt(formData.role_id, 10) : null,
+          status: formData.status,
+          phoneNumber: formData.phoneNumber.trim() || null,
+        };
+        
+        // Remove null values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === null) {
+            delete updateData[key];
+          }
+        });
+        
+        const response = await updateUser(user.id, updateData);
+
+        if (response.success) {
+          onSuccess();
+        } else {
+          setError(response.message || 'Failed to update user');
+        }
       }
     } catch (err) {
       setError(
@@ -104,26 +190,44 @@ const UserEdit = ({ user, onClose, onSuccess }) => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="role_id" className="block text-sm font-medium text-gray-700 mb-2">
+                  Role <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="role_id"
+                  name="role_id"
+                  required
+                  value={formData.role_id}
+                  onChange={handleChange}
+                  disabled={loadingRoles}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150"
+                >
+                  <option value="">Select Role</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name} - {role.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
             <div>
-              <label htmlFor="role_id" className="block text-sm font-medium text-gray-700 mb-2">
-                Role <span className="text-red-500">*</span>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
               </label>
-              <select
-                id="role_id"
-                name="role_id"
-                required
-                value={formData.role_id}
+              <input
+                type="tel"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
                 onChange={handleChange}
-                disabled={loadingRoles}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150"
-              >
-                <option value="">Select Role</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name} - {role.description}
-                  </option>
-                ))}
-              </select>
+                placeholder="+1234567890 (optional)"
+                pattern="[+]?[0-9]{8,15}"
+              />
+              <p className="text-xs text-gray-500 mt-1">8-15 digits with optional country code</p>
             </div>
 
             <div>
@@ -140,6 +244,46 @@ const UserEdit = ({ user, onClose, onSuccess }) => {
                 <option value="ACTIVE">Active</option>
                 <option value="DISABLED">Disabled</option>
               </select>
+            </div>
+
+            <div className="col-span-2">
+              <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700 mb-2">
+                Profile Picture
+              </label>
+              <div className="space-y-3">
+                {existingProfilePicture && !profilePicturePreview && (
+                  <div className="mb-3">
+                    <p className="text-sm text-gray-600 mb-2">Current Profile Picture:</p>
+                    <img
+                      src={existingProfilePicture}
+                      alt="Current profile"
+                      className="h-32 w-32 object-cover border border-gray-300 rounded-full"
+                    />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  id="profilePicture"
+                  name="profilePicture"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleProfilePictureChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 text-sm"
+                />
+                <p className="text-xs text-gray-500">
+                  Accepted formats: JPG, PNG, GIF, WEBP (Max 5MB). Leave empty to keep current picture.
+                </p>
+                {profilePicturePreview && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">New Profile Picture Preview:</p>
+                    <img
+                      src={profilePicturePreview}
+                      alt="Preview"
+                      className="h-32 w-32 object-cover border border-gray-300 rounded-full"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
             </div>
 
             <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">

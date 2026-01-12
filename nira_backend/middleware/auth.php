@@ -26,11 +26,13 @@ class AuthMiddleware {
         
         // STRICT CHECK: $_SESSION['user_id'] must exist
         // No fallbacks, no assumptions - backend is source of truth
+        // Note: bootstrap.php already handles session expiration, so we just check if user_id exists
         if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
             http_response_code(401);
             echo json_encode([
                 'success' => false,
-                'message' => 'Authentication required. Please login.'
+                'message' => 'Authentication required. Please login.',
+                'expired' => isset($_SESSION['last_activity']) // Indicate if it was an expiration
             ]);
             exit; // Exit immediately - no access without valid session
         }
