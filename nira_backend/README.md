@@ -222,13 +222,66 @@ nira_frontend/
 
 ## Database Files
 
-All database files are located in `nira_backend/database/`:
+**⚠️ IMPORTANT: Database Setup Instructions**
 
-### Main Schema
-- **`schema.sql`** - Main database schema with tables: `nira_users`, `citizens`, `roles`, `permissions`, `role_permissions`, `menus`, `role_menus`, `status_change_log`
+All database files are located in `nira_backend/database/`. The project includes a **complete installation script** that sets up the entire database with all tables, migrations, and default data in one step.
 
-### Migration Files
-- **`setup.php`** - Database setup script (creates default users)
+### 🚀 Quick Installation (Recommended)
+
+**Use the complete installation script to set up the entire database:**
+
+```bash
+# Step 1: Create the database
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS nira_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Step 2: Run the complete installation script
+mysql -u root -p nira_system < nira_backend/database/install_all.sql
+```
+
+**OR using PHP script:**
+
+```bash
+# Step 1: Create the database
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS nira_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Step 2: Run the PHP installation script
+php nira_backend/database/install_all.php
+```
+
+The `install_all.sql` script includes:
+- ✅ Complete database schema (all tables)
+- ✅ All migration files (in correct order)
+- ✅ Default roles (Admin, Officer, Viewer)
+- ✅ Default permissions (9 permissions)
+- ✅ Default menus (13 menu items)
+- ✅ Default users (admin and officer1)
+- ✅ All RBAC relationships and configurations
+
+### 📁 Database Files Structure
+
+#### **Complete Installation Scripts (Use These!)**
+- **`install_all.sql`** ⭐ **PRIMARY INSTALLATION SCRIPT** - Complete database setup in one file
+  - Includes all tables, migrations, and default data
+  - Run this to set up the entire database
+  - Location: `nira_backend/database/install_all.sql`
+  
+- **`install_all.php`** - PHP version of the complete installation script
+  - Alternative to SQL script
+  - Provides progress feedback
+  - Location: `nira_backend/database/install_all.php`
+
+#### **Main Schema File**
+- **`schema.sql`** - Original database schema file
+  - Creates main tables: `nira_users`, `citizens`, `roles`, `permissions`, `role_permissions`, `menus`, `role_menus`, `status_change_log`, `system_notices`, `system_activities`
+  - **Note:** This is included in `install_all.sql` - you don't need to run it separately
+
+#### **Setup Script**
+- **`setup.php`** - Database setup script (creates default users with proper password hashes)
+  - **Note:** Default user creation is included in `install_all.sql` - you don't need to run this separately if using `install_all.sql`
+
+#### **Migration Files (Individual - For Reference Only)**
+These files are **already included** in `install_all.sql`. You only need them if you're doing manual step-by-step installation:
+
 - **`add_citizen_files.sql`** - Adds `image_path` and `document_path` columns to citizens table
 - **`add_deleted_at_to_citizens.sql`** - Adds soft delete support to citizens table
 - **`add_deleted_at_to_users.sql`** - Adds soft delete support to users table
@@ -240,6 +293,62 @@ All database files are located in `nira_backend/database/`:
 - **`create_system_notices_activities_tables.sql`** - Creates notices and activities tables
 - **`create_system_notices_table.sql`** - Creates system_notices table
 - **`remove_view_reports_from_viewer.sql`** - Removes VIEW_REPORTS permission from Viewer role
+
+### 📊 Database Tables Created
+
+The installation script creates the following tables:
+
+1. **`nira_users`** - System users (admins, officers, viewers)
+2. **`citizens`** - Citizen registration records
+3. **`roles`** - User roles (Admin, Officer, Viewer)
+4. **`permissions`** - System permissions
+5. **`role_permissions`** - Role-permission mappings
+6. **`menus`** - Navigation menu items
+7. **`role_menus`** - Role-menu mappings
+8. **`status_change_log`** - Audit trail for citizen status changes
+9. **`system_notices`** - System notices/announcements
+10. **`system_activities`** - System activity logs
+
+### ✅ Verification
+
+After running `install_all.sql`, verify the installation:
+
+```sql
+-- Check if tables were created
+SHOW TABLES;
+
+-- Check default users
+SELECT id, username, role_id, status FROM nira_users;
+
+-- Check roles
+SELECT * FROM roles;
+
+-- Check permissions
+SELECT * FROM permissions;
+```
+
+### 🔐 Default Credentials (After Installation)
+
+- **Admin User:**
+  - Username: `admin`
+  - Password: `admin123`
+  - Role: ADMIN (Full access)
+
+- **Officer User:**
+  - Username: `officer1`
+  - Password: `admin123`
+  - Role: OFFICER (Citizen management access)
+
+**⚠️ CRITICAL:** Change these default passwords immediately in production environments!
+
+### 📝 Important Notes
+
+1. **Always use `install_all.sql`** for fresh installations - it includes everything in the correct order
+2. **Migration files are for reference** - they're already included in the installation script
+3. **Database must be created first** before running the installation script
+4. **Character set:** Database uses `utf8mb4` for full Unicode support
+5. **All foreign keys** are properly set up with CASCADE rules
+6. **All indexes** are created for optimal performance
 
 ---
 
@@ -255,9 +364,36 @@ All database files are located in `nira_backend/database/`:
 ### Backend Setup
 
 1. **Database Configuration**
+   
+   **Option 1: Using the Complete Installation Script (Recommended)**
    ```bash
-   # Create database and tables
+   # Create database first
+   mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS nira_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   
+   # Run complete installation script (includes all migrations)
+   mysql -u root -p nira_system < nira_backend/database/install_all.sql
+   ```
+   
+   **Option 2: Using PHP Installation Script**
+   ```bash
+   # Create database first
+   mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS nira_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   
+   # Run PHP installation script
+   php nira_backend/database/install_all.php
+   ```
+   
+   **Option 3: Manual Installation (Step by Step)**
+   ```bash
+   # Create database and main schema
    mysql -u root -p < nira_backend/database/schema.sql
+   
+   # Run individual migration files in order
+   mysql -u root -p nira_system < nira_backend/database/add_deleted_at_to_citizens.sql
+   mysql -u root -p nira_system < nira_backend/database/add_deleted_at_to_users.sql
+   mysql -u root -p nira_system < nira_backend/database/add_citizen_files.sql
+   mysql -u root -p nira_system < nira_backend/database/add_user_phone_profile.sql
+   # ... (run other migration files as needed)
    
    # Run setup script to create default users
    php nira_backend/database/setup.php
@@ -411,9 +547,18 @@ The system includes:
 - **Config:** 2 configuration files in `config/` directory
 
 ### Database Files
-- **Main Schema:** 1 SQL file (`schema.sql`)
-- **Migrations:** 11 SQL migration files
-- **Setup Script:** 1 PHP file (`setup.php`)
+- **⭐ Complete Installation Script:** `install_all.sql` - **PRIMARY FILE FOR DATABASE SETUP**
+  - Includes ALL database files in one script
+  - Contains: main schema, all 11 migrations, default data, RBAC setup
+  - **Location:** `nira_backend/database/install_all.sql`
+  - **Usage:** `mysql -u root -p nira_system < nira_backend/database/install_all.sql`
+  
+- **PHP Installation Script:** `install_all.php` - Alternative installation method
+- **Main Schema:** 1 SQL file (`schema.sql` - included in install_all.sql)
+- **Migrations:** 11 SQL migration files (all included in install_all.sql)
+- **Setup Script:** 1 PHP file (`setup.php` - included in install_all.sql)
+
+**⚠️ CRITICAL:** Always use `install_all.sql` for database installation. It is the complete, all-in-one database setup script that includes every database file in the correct order.
 
 ### Frontend Files (React)
 - **Components:** 20+ React components (.jsx files)
